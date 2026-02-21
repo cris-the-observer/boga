@@ -1,5 +1,6 @@
 import json
 import logging
+import threading
 import time
 import urllib.request
 from urllib.error import URLError
@@ -16,7 +17,7 @@ CLEAN (most transactions are normal):
 - Chatting with friends or family
 - Small talk, casual conversation, brief phrases
 
-SUSPICIOUS (classify ONLY if you see clear evidence of a scam):
+SUSPICIOUS (signs someone is being scammed):
 - On the phone being told what to do at the machine by a caller
 - Being directed to send crypto to someone else's address
 - Mentioning police, IRS, warrants, arrest, or government demanding payment
@@ -30,12 +31,22 @@ IMPORTANT: Only list observations about suspicious things you actually found in 
 Respond ONLY in JSON."""
 
 
+def _estimate_num_ctx(system_prompt, transcript):
+    """Estimate minimum context window from prompt lengths (3 chars/token, conservative)."""
+    prompt_tokens = len(system_prompt) // 3 + len(transcript) // 3
+    needed = prompt_tokens + 128  # 128 tokens headroom for JSON output
+    # Round up to nearest 256, minimum 512
+    return max(512, ((needed + 255) // 256) * 256)
+
+
 def classify_transcript(model_name, transcript):
+    num_ctx = _estimate_num_ctx(SYSTEM_PROMPT, transcript)
     payload = {
         "model": model_name,
         "prompt": transcript,
         "system": SYSTEM_PROMPT,
         "stream": False,
+        "keep_alive": -1,
         "format": {
             "type": "object",
             "properties": {
@@ -44,7 +55,7 @@ def classify_transcript(model_name, transcript):
             },
             "required": ["classification", "observations"],
         },
-        "options": {"temperature": 0, "num_ctx": 2048},
+        "options": {"temperature": 0, "num_ctx": num_ctx, "num_predict": 100, "num_thread": 4, "num_batch": 256},
         "think": False,
     }
 
@@ -52,6 +63,17 @@ def classify_transcript(model_name, transcript):
     log.debug("Prompt preview: %.200s%s", transcript, "..." if len(transcript) > 200 else "")
 
     start_time = time.time()
+    done = threading.Event()
+
+    def thinking_indicator():
+        interval = 10
+        while not done.wait(interval):
+            elapsed = time.time() - start_time
+            log.info("Ollama thinking... (%.0fs elapsed)", elapsed)
+
+    indicator = threading.Thread(target=thinking_indicator, daemon=True)
+    indicator.start()
+
     try:
         req = urllib.request.Request(
             config.OLLAMA_GENERATE_URL,
@@ -61,6 +83,7 @@ def classify_transcript(model_name, transcript):
         with urllib.request.urlopen(req, timeout=config.OLLAMA_TIMEOUT) as response:
             result = json.loads(response.read().decode("utf-8"))
 
+        done.set()
         inference_time = time.time() - start_time
         llm_response_text = result.get("response", "{}")
         log.debug("Raw Ollama response: %s", llm_response_text)
@@ -88,5 +111,6 @@ def classify_transcript(model_name, transcript):
             "inference_time_seconds": inference_time,
         }
     except (URLError, OSError, ValueError) as e:
+        done.set()
         log.error("Error calling Ollama: %s", e)
         return {"classification": "ERROR", "observations": [], "inference_time_seconds": time.time() - start_time}

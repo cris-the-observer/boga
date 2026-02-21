@@ -42,7 +42,12 @@ def test_classify_sends_correct_payload(mock_request, mock_urlopen):
     assert payload["prompt"] == "test transcript"
     assert payload["system"] == classifier.SYSTEM_PROMPT
     assert payload["stream"] is False
+    assert payload["keep_alive"] == -1
     assert payload["options"]["temperature"] == 0
+    assert payload["options"]["num_predict"] == 100
+    assert payload["options"]["num_thread"] == 4
+    assert payload["options"]["num_batch"] == 256
+    assert payload["options"]["num_ctx"] >= 512
     assert "format" in payload
     assert payload["format"]["type"] == "object"
 
@@ -113,3 +118,13 @@ def test_classify_passes_timeout(mock_request, mock_urlopen):
     mock_urlopen.assert_called_once()
     _, kwargs = mock_urlopen.call_args
     assert kwargs["timeout"] == config.OLLAMA_TIMEOUT
+
+
+def test_estimate_num_ctx_short_transcript():
+    ctx = classifier._estimate_num_ctx("System prompt here", "short text")
+    assert ctx == 512  # minimum floor
+
+
+def test_estimate_num_ctx_long_transcript():
+    ctx = classifier._estimate_num_ctx("System prompt here", "x" * 5000)
+    assert ctx >= 1792  # must fit ~1700+ estimated tokens

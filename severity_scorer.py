@@ -38,9 +38,14 @@ KEYWORD_GROUPS = {
         "phone",
         "dictated",
         "told to",
+        "told me to",
         "asked what",
         "what to do next",
-        "now what",
+        "what do i do",
+        "what do i",
+        "supposed to",
+        "send you",
+        "don't want you to",
         "next step",
         "instructed",
         "walked through",
@@ -87,14 +92,17 @@ KEYWORD_GROUPS = {
         "told not to",
     ],
     "CONFUSION": [
-        "don't know what bitcoin",
-        "never used",
+        "don't know what",
+        "don't know how",
         "don't understand",
-        "what is crypto",
+        "what is this",
+        "what is happening",
         "how does this work",
+        "never used",
         "first time",
         "confused",
-        "what is this machine",
+        "what is crypto",
+        "what is bitcoin",
         "voucher",
         "gift card",
         "wire transfer",
@@ -107,7 +115,7 @@ KEYWORD_GROUPS = {
 log = logging.getLogger(__name__)
 
 
-def score_severity(llm_output):
+def score_severity(llm_output, transcript=""):
     classification = llm_output.get("classification", "ERROR")
     observations = llm_output.get("observations", [])
 
@@ -121,54 +129,55 @@ def score_severity(llm_output):
             "observations": observations,
         }
 
-    if classification == "CLEAN":
-        log.info("Classification is CLEAN — severity LOW (keyword scoring skipped)")
-        return {
-            "severity": "LOW",
-            "triggered_groups": [],
-            "observation_count": len(observations),
-            "classification": classification,
-            "observations": observations,
-        }
-
-    log.debug("Scoring %d observations against %d keyword groups", len(observations), len(KEYWORD_GROUPS))
+    # Score keywords against the transcript (ground truth), not LLM observations
+    text_lower = transcript.lower()
+    log.debug("Scoring transcript (%d chars) against %d keyword groups", len(transcript), len(KEYWORD_GROUPS))
     triggered_groups = set()
-    for obs in observations:
-        obs_lower = obs.lower()
-        for group_name, keywords in KEYWORD_GROUPS.items():
-            for kw in keywords:
-                if kw.lower() in obs_lower:
-                    log.debug("  keyword '%s' matched in group %s (obs: %s)", kw, group_name, obs[:80])
-                    triggered_groups.add(group_name)
-                    break
+    for group_name, keywords in KEYWORD_GROUPS.items():
+        for kw in keywords:
+            if kw.lower() in text_lower:
+                log.debug("  keyword '%s' matched in group %s", kw, group_name)
+                triggered_groups.add(group_name)
+                break
 
     triggered_list = sorted(triggered_groups)
     num_triggered = len(triggered_list)
 
     severity = "LOW"
 
-    # CRITICAL logic
-    if (
-        "SECRECY" in triggered_groups
-        or ("PHONE_DIRECTION" in triggered_groups and "FEAR" in triggered_groups)
-        or num_triggered >= 4
-    ):
-        severity = "CRITICAL"
-    # HIGH logic
-    elif (
-        num_triggered == 3
-        or ("PHONE_DIRECTION" in triggered_groups and "LARGE_AMOUNT" in triggered_groups)
-        or "AUTHORITY" in triggered_groups
-    ):
-        severity = "HIGH"
-    # MEDIUM logic
-    elif num_triggered == 2 or (classification == "SUSPICIOUS" and num_triggered <= 1):
-        severity = "MEDIUM"
-    # LOW logic
-    else:
-        severity = "LOW"
+    if classification == "CLEAN":
+        # Safety net: keyword evidence from 2+ groups overrides a CLEAN classification
+        if num_triggered >= 2:
+            severity = "MEDIUM"
+            log.info("CLEAN overridden to MEDIUM — %d keyword groups in transcript: %s", num_triggered, ", ".join(triggered_list))
+        else:
+            log.info("Classification is CLEAN, %d keyword groups — severity LOW", num_triggered)
+    elif classification == "SUSPICIOUS":
+        if num_triggered == 0:
+            # LLM said suspicious but no keywords in transcript — don't trust it
+            severity = "LOW"
+            log.info("SUSPICIOUS downgraded to LOW — no keyword groups in transcript")
+        # CRITICAL logic
+        elif (
+            "SECRECY" in triggered_groups
+            or ("PHONE_DIRECTION" in triggered_groups and "FEAR" in triggered_groups)
+            or num_triggered >= 4
+        ):
+            severity = "CRITICAL"
+        # HIGH logic
+        elif (
+            num_triggered >= 3
+            or ("PHONE_DIRECTION" in triggered_groups and "LARGE_AMOUNT" in triggered_groups)
+            or "AUTHORITY" in triggered_groups
+        ):
+            severity = "HIGH"
+        # MEDIUM logic
+        elif num_triggered >= 1:
+            severity = "MEDIUM"
 
-    log.info("Severity scored: %s (triggered %d groups: %s)", severity, num_triggered, ", ".join(triggered_list) or "(none)")
+    if num_triggered > 0:
+        log.info("Severity scored: %s (triggered %d groups: %s)", severity, num_triggered, ", ".join(triggered_list))
+
     return {
         "severity": severity,
         "triggered_groups": triggered_list,

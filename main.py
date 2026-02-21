@@ -74,7 +74,7 @@ class Orchestrator:
             for obs in llm_output.get("observations", []):
                 log.debug("  observation: %s", obs)
 
-            score = score_severity(llm_output)
+            score = score_severity(llm_output, transcript=text)
             log.info(
                 "Severity: %s | triggered groups: %s",
                 score["severity"],
