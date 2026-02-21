@@ -1,0 +1,11 @@
+vosk==0.3.45
+PyAudio==0.2.14
+numpy>=1.24
+
+# Dev
+pytest>=7.0
+pytest-cov>=4.0
+ruff>=0.4
+
+# Optional: only needed on Raspberry Pi for GPIO alerts
+# RPi.GPIO>=0.7

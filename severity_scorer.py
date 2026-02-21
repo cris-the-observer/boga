@@ -121,6 +121,16 @@ def score_severity(llm_output):
             "observations": observations,
         }
 
+    if classification == "CLEAN":
+        log.info("Classification is CLEAN — severity LOW (keyword scoring skipped)")
+        return {
+            "severity": "LOW",
+            "triggered_groups": [],
+            "observation_count": len(observations),
+            "classification": classification,
+            "observations": observations,
+        }
+
     log.debug("Scoring %d observations against %d keyword groups", len(observations), len(KEYWORD_GROUPS))
     triggered_groups = set()
     for obs in observations:

@@ -40,7 +40,8 @@ def classify_transcript(model_name, transcript):
             },
             "required": ["classification", "observations"],
         },
-        "options": {"temperature": 0},
+        "options": {"temperature": 0, "num_ctx": 2048},
+        "think": False,
     }
 
     log.info("Sending transcript to Ollama (%s) — %d chars", model_name, len(transcript))

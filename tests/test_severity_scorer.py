@@ -65,10 +65,10 @@ def test_low_clean_zero_groups():
     assert len(result["triggered_groups"]) == 0
 
 
-def test_low_clean_one_group():
+def test_low_clean_skips_scoring():
     result = score_severity({"classification": "CLEAN", "observations": ["panic"]})
     assert result["severity"] == "LOW"
-    assert len(result["triggered_groups"]) == 1
+    assert len(result["triggered_groups"]) == 0
 
 
 def test_keyword_matching_is_case_insensitive():

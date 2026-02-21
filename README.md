@@ -53,7 +53,9 @@ Severity levels are determined by these rules:
 ```bash
 git clone <repo-url>
 cd scam-detector
-pip install vosk pyaudio requests
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
 Download a Vosk model and place it at `models/vosk-model`:
@@ -74,15 +76,23 @@ ollama pull qwen3:1.7b
 
 ## Usage
 
-Start the detector (requires a microphone, Vosk model, and Ollama running):
+Make sure Ollama is running before starting the detector:
 
 ```bash
+# Start the Ollama server (leave this running in a separate terminal)
+ollama serve
+
+# Verify the model is available
+ollama list | grep qwen3:1.7b
+
+# Start the detector
 python main.py
 ```
 
-The system will:
-- Verify the Vosk model exists and Ollama is reachable
-- Begin capturing audio and transcribing speech
+On startup, the detector verifies the Vosk model exists at `models/vosk-model` and that Ollama is reachable at `localhost:11434`. Once running, it will:
+
+- Capture audio from the default microphone
+- Transcribe speech in real time
 - Run classification cycles every 5 seconds
 - Print alerts to the console and append them to `alerts.log`
 
