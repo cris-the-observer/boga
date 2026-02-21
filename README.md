@@ -52,7 +52,7 @@ Severity levels are determined by these rules:
 
 ```bash
 git clone <repo-url>
-cd scam-detector
+cd boga
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
