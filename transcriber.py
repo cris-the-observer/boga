@@ -21,6 +21,10 @@ class Transcriber:
             result = json.loads(self.recognizer.Result())
             text = result.get("text", "")
             if text:
+                words = text.split()
+                if len(words) == 1 and len(words[0]) <= 3:
+                    log.debug("Vosk noise filtered (chunk #%d): %s", self.chunks_fed, text)
+                    return
                 log.debug("Vosk recognized (chunk #%d): %s", self.chunks_fed, text)
                 self.results.append(text)
             else:

@@ -1,3 +1,4 @@
+import time
 from unittest.mock import patch
 
 import pytest
@@ -43,19 +44,20 @@ def test_classification_skipped_when_buffer_empty():
 
 def test_classification_fires_when_buffer_has_text():
     orchestrator = Orchestrator()
-    orchestrator.buffer.append("Hello suspicious test")
+    text = "Hello this is a suspicious test with enough words to trigger classification"
+    orchestrator.buffer.append(text)
 
     with patch("main.classify_transcript") as mock_classify, patch("main.score_severity") as mock_score:
         mock_classify.return_value = {"classification": "CLEAN", "observations": []}
         mock_score.return_value = {"severity": "LOW", "triggered_groups": [], "observations": []}
 
         orchestrator.classification_cycle()
-        mock_classify.assert_called_once_with(config.OLLAMA_MODEL, "Hello suspicious test")
+        mock_classify.assert_called_once_with(config.OLLAMA_MODEL, text)
 
 
 def test_concurrent_classification_skipped():
     orchestrator = Orchestrator()
-    orchestrator.buffer.append("text")
+    orchestrator.buffer.append("Just buying some bitcoin with my spare cash today")
 
     orchestrator.classification_lock.acquire()
 
@@ -66,7 +68,8 @@ def test_concurrent_classification_skipped():
 
 def test_alert_fires_on_high_severity():
     orchestrator = Orchestrator()
-    orchestrator.buffer.append("text")
+    text = "The IRS called and told me I need to send money right now or I will be arrested"
+    orchestrator.buffer.append(text)
 
     with (
         patch("main.classify_transcript") as mock_classify,
@@ -77,12 +80,12 @@ def test_alert_fires_on_high_severity():
         mock_score.return_value = {"severity": "HIGH", "triggered_groups": ["AUTHORITY"], "observations": ["A"]}
 
         orchestrator.classification_cycle()
-        mock_alert.assert_called_once_with("HIGH", ["AUTHORITY"], ["A"], "text")
+        mock_alert.assert_called_once_with("HIGH", ["AUTHORITY"], ["A"], text)
 
 
 def test_alert_does_not_fire_on_low():
     orchestrator = Orchestrator()
-    orchestrator.buffer.append("text")
+    orchestrator.buffer.append("Just buying some bitcoin with my spare cash today")
 
     with (
         patch("main.classify_transcript") as mock_classify,
@@ -94,3 +97,24 @@ def test_alert_does_not_fire_on_low():
 
         orchestrator.classification_cycle()
         mock_alert.assert_not_called()
+
+
+def test_silence_resets_buffer():
+    orchestrator = Orchestrator()
+    orchestrator.buffer.append("Some old conversation text that should be cleared after silence")
+    orchestrator._last_classified_len = 60
+
+    # Simulate 30s of silence by backdating the last append time
+    orchestrator.buffer.last_append_time = time.time() - 35
+
+    with patch("main.classify_transcript") as mock_classify:
+        # Manually run the silence check logic from classifier_thread
+        idle = orchestrator.buffer.seconds_since_last_append()
+        assert idle >= config.SILENCE_RESET_SECONDS
+        assert not orchestrator.buffer.is_empty()
+
+        orchestrator.buffer.clear()
+        orchestrator._last_classified_len = 0
+
+        assert orchestrator.buffer.is_empty()
+        assert orchestrator._last_classified_len == 0

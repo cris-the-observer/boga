@@ -34,16 +34,25 @@ def check_startup():
 
 
 class Orchestrator:
+    MIN_NEW_CHARS = 40  # Skip classification if buffer grew by fewer chars than this
+
     def __init__(self):
         self.buffer = TranscriptBuffer()
         self.transcriber = None
         self.classification_lock = threading.Lock()
         self.running = False
         self.chunk_count = 0
+        self._last_classified_len = 0
 
     def classification_cycle(self):
         if self.buffer.is_empty():
             log.debug("Classification cycle skipped — buffer is empty")
+            return
+
+        current_len = len(self.buffer.buffer)
+        new_chars = current_len - self._last_classified_len
+        if new_chars < self.MIN_NEW_CHARS:
+            log.debug("Classification cycle skipped — only %d new chars (need %d)", new_chars, self.MIN_NEW_CHARS)
             return
 
         if not self.classification_lock.acquire(blocking=False):
@@ -72,6 +81,8 @@ class Orchestrator:
                 ", ".join(score["triggered_groups"]) or "(none)",
             )
 
+            self._last_classified_len = current_len
+
             if score["severity"] in {"HIGH", "CRITICAL"}:
                 log.warning(">>> ALERT triggered: %s <<<", score["severity"])
                 alerter.alert(score["severity"], score["triggered_groups"], score["observations"], text)
@@ -91,6 +102,14 @@ class Orchestrator:
             log.info("Classifier thread started (interval=%.1fs)", config.CLASSIFY_INTERVAL)
             while self.running:
                 time.sleep(config.CLASSIFY_INTERVAL)
+
+                idle = self.buffer.seconds_since_last_append()
+                if idle >= config.SILENCE_RESET_SECONDS and not self.buffer.is_empty():
+                    log.info("Silence detected (%.0fs idle) — clearing buffer for next interaction", idle)
+                    self.buffer.clear()
+                    self._last_classified_len = 0
+                    continue
+
                 self.classification_cycle()
                 self.buffer.trim()
 
