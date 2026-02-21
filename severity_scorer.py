@@ -1,3 +1,5 @@
+import logging
+
 KEYWORD_GROUPS = {
     "AUTHORITY": [
         "warrant",
@@ -102,11 +104,15 @@ KEYWORD_GROUPS = {
 }
 
 
+log = logging.getLogger(__name__)
+
+
 def score_severity(llm_output):
     classification = llm_output.get("classification", "ERROR")
     observations = llm_output.get("observations", [])
 
     if classification == "ERROR":
+        log.warning("Scoring skipped — classification is ERROR")
         return {
             "severity": "ERROR",
             "triggered_groups": [],
@@ -115,12 +121,14 @@ def score_severity(llm_output):
             "observations": observations,
         }
 
+    log.debug("Scoring %d observations against %d keyword groups", len(observations), len(KEYWORD_GROUPS))
     triggered_groups = set()
     for obs in observations:
         obs_lower = obs.lower()
         for group_name, keywords in KEYWORD_GROUPS.items():
             for kw in keywords:
                 if kw.lower() in obs_lower:
+                    log.debug("  keyword '%s' matched in group %s (obs: %s)", kw, group_name, obs[:80])
                     triggered_groups.add(group_name)
                     break
 
@@ -150,6 +158,7 @@ def score_severity(llm_output):
     else:
         severity = "LOW"
 
+    log.info("Severity scored: %s (triggered %d groups: %s)", severity, num_triggered, ", ".join(triggered_list) or "(none)")
     return {
         "severity": severity,
         "triggered_groups": triggered_list,

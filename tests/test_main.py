@@ -7,25 +7,29 @@ from main import Orchestrator, check_startup
 
 
 @patch("pathlib.Path.exists")
-def test_startup_checks_vosk_model(mock_exists, capsys):
+def test_startup_checks_vosk_model(mock_exists, caplog):
+    import logging
+
     mock_exists.return_value = False
-    with pytest.raises(SystemExit):
-        check_startup()
-    captured = capsys.readouterr()
-    assert "Vosk model not found" in captured.err
+    with caplog.at_level(logging.CRITICAL, logger="main"):
+        with pytest.raises(SystemExit):
+            check_startup()
+    assert "Vosk model not found" in caplog.text
 
 
 @patch("pathlib.Path.exists")
 @patch("urllib.request.urlopen")
-def test_startup_checks_ollama(mock_urlopen, mock_exists, capsys):
+def test_startup_checks_ollama(mock_urlopen, mock_exists, caplog):
+    import logging
+
     mock_exists.return_value = True
     from urllib.error import URLError
 
     mock_urlopen.side_effect = URLError("Refused")
-    with pytest.raises(SystemExit):
-        check_startup()
-    captured = capsys.readouterr()
-    assert "Ollama is not running" in captured.err
+    with caplog.at_level(logging.CRITICAL, logger="main"):
+        with pytest.raises(SystemExit):
+            check_startup()
+    assert "Ollama is not running" in caplog.text
 
 
 def test_classification_skipped_when_buffer_empty():

@@ -5,11 +5,13 @@ import config
 from alerter import alert
 
 
-def test_console_alert_prints(capsys):
-    alert("HIGH", ["FEAR", "AUTHORITY"], ["Some obs"], "some text", log_file="/dev/null")
-    captured = capsys.readouterr()
-    assert "ALERT: HIGH" in captured.out
-    assert "FEAR, AUTHORITY" in captured.out
+def test_console_alert_prints(caplog):
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="alerter"):
+        alert("HIGH", ["FEAR", "AUTHORITY"], ["Some obs"], "some text", log_file="/dev/null")
+    assert "ALERT: HIGH" in caplog.text
+    assert "FEAR, AUTHORITY" in caplog.text
 
 
 def test_log_alert_writes_json(tmp_log_file):
