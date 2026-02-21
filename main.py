@@ -133,12 +133,52 @@ class Orchestrator:
             self.running = False
 
 
+class ColorFormatter(logging.Formatter):
+    RESET = "\033[0m"
+    COLORS = {
+        logging.DEBUG: "\033[90m",       # gray
+        logging.INFO: "\033[36m",        # cyan
+        logging.WARNING: "\033[33m",     # yellow
+        logging.ERROR: "\033[31m",       # red
+        logging.CRITICAL: "\033[1;31m",  # bold red
+    }
+    SEVERITY_COLORS = {
+        "CRITICAL": "\033[1;31m",  # bold red
+        "HIGH": "\033[31m",       # red
+        "MEDIUM": "\033[33m",     # yellow
+        "LOW": "\033[32m",        # green
+    }
+
+    def format(self, record):
+        color = self.COLORS.get(record.levelno, self.RESET)
+        msg = record.getMessage()
+
+        # Color severity lines by severity level instead of log level
+        if msg.startswith("Severity:"):
+            for sev, sev_color in self.SEVERITY_COLORS.items():
+                if sev in msg:
+                    color = sev_color
+                    break
+        # Highlight alert lines
+        elif "ALERT triggered" in msg:
+            color = "\033[1;31m"  # bold red
+        # Highlight transcriptions
+        elif msg.startswith("[Transcribed]"):
+            color = "\033[32m"  # green
+
+        record.msg = f"{color}{record.msg}{self.RESET}"
+        result = super().format(record)
+        record.msg = msg  # restore original for other handlers
+        return result
+
+
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s [%(levelname)-8s] %(name)-20s | %(message)s",
+    handler = logging.StreamHandler()
+    handler.setFormatter(ColorFormatter(
+        fmt="%(asctime)s [%(levelname)-8s] %(name)-20s | %(message)s",
         datefmt="%H:%M:%S",
-    )
+    ))
+    logging.basicConfig(level=logging.DEBUG, handlers=[handler])
     log.info("Scam Detector starting up")
     log.info("Config: chunk_size=%d, buffer_max=%d, classify_interval=%.1fs, model=%s",
              config.CHUNK_SIZE, config.TRANSCRIPT_MAX_CHARS, config.CLASSIFY_INTERVAL, config.OLLAMA_MODEL)

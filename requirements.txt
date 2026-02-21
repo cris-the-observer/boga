@@ -1,4 +1,4 @@
-vosk==0.3.45
+vosk==0.3.44
 PyAudio==0.2.14
 numpy>=1.24
 
