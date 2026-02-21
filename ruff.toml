@@ -6,6 +6,6 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
 ignore = ["E501"]  # line length handled separately
 
 [lint.per-file-ignores]
-"tests/*" = ["B011"]  # allow assert in tests
+"tests/*" = ["B011", "E402"]  # allow assert in tests; E402 for sys.modules hacks
 
 [format]

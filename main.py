@@ -1,32 +1,27 @@
-import os
 import sys
 import threading
 import time
 import urllib.request
+from pathlib import Path
 from urllib.error import URLError
 
 import alerter
+import config
 from audio_capture import capture_audio
 from classifier import classify_transcript
 from severity_scorer import score_severity
 from transcriber import Transcriber
 from transcript_buffer import TranscriptBuffer
 
-# Default constants that might be overridden for testing
-VOSK_MODEL_PATH = "models/vosk-model"
-OLLAMA_URL = "http://localhost:11434/api/tags"
-OLLAMA_MODEL = "qwen3:1.7b"
-CLASSIFY_INTERVAL = 5.0
-
 
 def check_startup():
-    if not os.path.exists(VOSK_MODEL_PATH):
-        print(f"Error: Vosk model not found at {VOSK_MODEL_PATH}", file=sys.stderr)
+    if not Path(config.VOSK_MODEL_PATH).exists():
+        print(f"Error: Vosk model not found at {config.VOSK_MODEL_PATH}", file=sys.stderr)
         sys.exit(1)
 
     try:
-        urllib.request.urlopen(OLLAMA_URL, timeout=2)
-    except (URLError, Exception):
+        urllib.request.urlopen(config.OLLAMA_TAGS_URL, timeout=2)
+    except URLError:
         print("Error: Ollama is not running or reachable", file=sys.stderr)
         sys.exit(1)
 
@@ -47,23 +42,22 @@ class Orchestrator:
 
         try:
             text = self.buffer.get_window()
-            llm_output = classify_transcript(OLLAMA_MODEL, text)
+            llm_output = classify_transcript(config.OLLAMA_MODEL, text)
             score = score_severity(llm_output)
 
-            if score["severity"] in ["HIGH", "CRITICAL"]:
+            if score["severity"] in {"HIGH", "CRITICAL"}:
                 alerter.alert(score["severity"], score["triggered_groups"], score["observations"], text)
         finally:
             self.classification_lock.release()
 
     def run(self):
         check_startup()
-        self.transcriber = Transcriber(VOSK_MODEL_PATH)
+        self.transcriber = Transcriber(config.VOSK_MODEL_PATH)
         self.running = True
 
-        # Start a thread for classification
         def classifier_thread():
             while self.running:
-                time.sleep(CLASSIFY_INTERVAL)
+                time.sleep(config.CLASSIFY_INTERVAL)
                 self.classification_cycle()
                 self.buffer.trim()
 

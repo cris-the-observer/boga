@@ -32,7 +32,7 @@ class TranscriptBuffer:
             self.buffer = self.buffer[start_idx:]
 
     def is_empty(self):
-        return len(self.buffer) == 0
+        return not self.buffer
 
     def clear(self):
         self.buffer = ""

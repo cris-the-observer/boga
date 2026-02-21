@@ -2,6 +2,8 @@ import json
 import time
 from datetime import datetime
 
+import config
+
 
 def alert(severity, triggered_groups, observations, transcript, log_file="alerts.log"):
     # Console alert
@@ -21,16 +23,17 @@ def alert(severity, triggered_groups, observations, transcript, log_file="alerts
         f.write(json.dumps(record) + "\n")
 
     # GPIO alert
-    if severity in ["HIGH", "CRITICAL"]:
+    if severity in {"HIGH", "CRITICAL"}:
         try:
             import RPi.GPIO as GPIO
 
+            # TODO: GPIO setup/cleanup should be managed at application lifecycle level
             GPIO.setmode(GPIO.BCM)
             GPIO.setwarnings(False)
-            GPIO.setup(18, GPIO.OUT)
-            GPIO.output(18, GPIO.HIGH)
-            time.sleep(1)  # mock delay or actual delay
-            GPIO.output(18, GPIO.LOW)
+            GPIO.setup(config.GPIO_PIN, GPIO.OUT)
+            GPIO.output(config.GPIO_PIN, GPIO.HIGH)
+            time.sleep(1)
+            GPIO.output(config.GPIO_PIN, GPIO.LOW)
             GPIO.cleanup()
         except ImportError:
             pass

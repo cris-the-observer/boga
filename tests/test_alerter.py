@@ -1,6 +1,7 @@
 import json
 from unittest.mock import MagicMock, patch
 
+import config
 from alerter import alert
 
 
@@ -32,7 +33,6 @@ def test_log_appends_not_overwrites(tmp_log_file):
 
 @patch("builtins.__import__")
 def test_gpio_skipped_when_unavailable(mock_import):
-    # This mock should fail specifically when importing RPi.GPIO
     def side_effect(name, *args, **kwargs):
         if name == "RPi.GPIO":
             raise ImportError("No module named RPi.GPIO")
@@ -40,23 +40,22 @@ def test_gpio_skipped_when_unavailable(mock_import):
 
     mock_import.side_effect = side_effect
 
-    # Fire alert, verify no crash
     alert("HIGH", [], [], "", log_file="/dev/null")
 
 
 def test_gpio_pulses_when_available():
     import sys
-    
+
     mock_gpio = MagicMock()
     mock_rpi = MagicMock()
     mock_rpi.__path__ = []
     mock_rpi.GPIO = mock_gpio
-    
+
     with patch.dict(sys.modules, {"RPi": mock_rpi, "RPi.GPIO": mock_gpio}):
         alert("CRITICAL", [], [], "", log_file="/dev/null")
 
         mock_gpio.setmode.assert_called_with(mock_gpio.BCM)
-        mock_gpio.setup.assert_called_with(18, mock_gpio.OUT)
-        mock_gpio.output.assert_any_call(18, mock_gpio.HIGH)
-        mock_gpio.output.assert_any_call(18, mock_gpio.LOW)
+        mock_gpio.setup.assert_called_with(config.GPIO_PIN, mock_gpio.OUT)
+        mock_gpio.output.assert_any_call(config.GPIO_PIN, mock_gpio.HIGH)
+        mock_gpio.output.assert_any_call(config.GPIO_PIN, mock_gpio.LOW)
         mock_gpio.cleanup.assert_called_once()

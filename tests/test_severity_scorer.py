@@ -23,9 +23,7 @@ def test_critical_phone_direction_plus_fear():
 
 
 def test_high_three_groups():
-    result = score_severity(
-        {"classification": "SUSPICIOUS", "observations": ["panic", "starts with", "police"]}
-    )
+    result = score_severity({"classification": "SUSPICIOUS", "observations": ["panic", "starts with", "police"]})
     assert result["severity"] == "HIGH"
     assert len(result["triggered_groups"]) == 3
 

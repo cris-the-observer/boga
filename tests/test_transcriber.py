@@ -1,5 +1,6 @@
 import sys
 from unittest.mock import MagicMock
+
 sys.modules["vosk"] = MagicMock()
 
 from unittest.mock import patch

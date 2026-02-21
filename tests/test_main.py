@@ -2,11 +2,11 @@ from unittest.mock import patch
 
 import pytest
 
-import main
+import config
 from main import Orchestrator, check_startup
 
 
-@patch("os.path.exists")
+@patch("pathlib.Path.exists")
 def test_startup_checks_vosk_model(mock_exists, capsys):
     mock_exists.return_value = False
     with pytest.raises(SystemExit):
@@ -15,7 +15,7 @@ def test_startup_checks_vosk_model(mock_exists, capsys):
     assert "Vosk model not found" in captured.err
 
 
-@patch("os.path.exists")
+@patch("pathlib.Path.exists")
 @patch("urllib.request.urlopen")
 def test_startup_checks_ollama(mock_urlopen, mock_exists, capsys):
     mock_exists.return_value = True
@@ -46,14 +46,13 @@ def test_classification_fires_when_buffer_has_text():
         mock_score.return_value = {"severity": "LOW", "triggered_groups": [], "observations": []}
 
         orchestrator.classification_cycle()
-        mock_classify.assert_called_once_with(main.OLLAMA_MODEL, "Hello suspicious test")
+        mock_classify.assert_called_once_with(config.OLLAMA_MODEL, "Hello suspicious test")
 
 
 def test_concurrent_classification_skipped():
     orchestrator = Orchestrator()
     orchestrator.buffer.append("text")
 
-    # Simulate lock being held by another thread
     orchestrator.classification_lock.acquire()
 
     with patch("main.classify_transcript") as mock_classify:

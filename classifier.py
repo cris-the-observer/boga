@@ -1,6 +1,9 @@
 import json
 import time
 import urllib.request
+from urllib.error import URLError
+
+import config
 
 SYSTEM_PROMPT = """You analyze speech transcripts from a cryptocurrency ATM user. You only see the user's words. You cannot hear anyone on their phone.
 
@@ -40,11 +43,11 @@ def classify_transcript(model_name, transcript):
     start_time = time.time()
     try:
         req = urllib.request.Request(
-            "http://localhost:11434/api/generate",
+            config.OLLAMA_GENERATE_URL,
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=config.OLLAMA_TIMEOUT) as response:
             result = json.loads(response.read().decode("utf-8"))
 
         inference_time = time.time() - start_time
@@ -62,6 +65,6 @@ def classify_transcript(model_name, transcript):
             "observations": llm_response.get("observations", []),
             "inference_time_seconds": inference_time,
         }
-    except Exception as e:
+    except (URLError, OSError, ValueError) as e:
         print(f"Error calling Ollama: {e}")
         return {"classification": "ERROR", "observations": [], "inference_time_seconds": time.time() - start_time}
