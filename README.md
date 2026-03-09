@@ -1,4 +1,4 @@
-# Scam Detector
+# BOGA - Scam Detector
 
 Real-time crypto ATM scam detection on Raspberry Pi. Listens to conversations at a cryptocurrency ATM, transcribes speech locally, classifies intent with a local LLM, and triggers alerts when scam patterns are detected.
 
